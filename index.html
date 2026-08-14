@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flexbox Frogs Mini-Game</title>
+<style>
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    display: flex;
+    height: 100vh;
+    background: #43A047;
+    color: #e0e0e0;
+  }
+
+  /* Split Screen Layout */
+  #sidebar {
+    width: 40%;
+    min-width: 350px;
+    background: #263238;
+    padding: 2rem;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 5px 0 15px rgba(0,0,0,0.3);
+    z-index: 10;
+    overflow-y: auto;
+  }
+
+  #game-board {
+    width: 60%;
+    position: relative;
+    padding: 2rem;
+    background: #1e88e5; /* Water color */
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  h1 {
+    margin-top: 0;
+    color: #fff;
+    font-size: 1.5rem;
+  }
+
+  #instructions {
+    font-size: 1.1rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+  }
+
+  code {
+    background: rgba(255,255,255,0.1);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: monospace;
+    color: #81C784;
+    font-size: 1.1rem;
+  }
+
+  /* CSS Editor */
+  .editor {
+    background: #1b272d;
+    padding: 15px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 1.2rem;
+    color: #fff;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.5);
+    margin-bottom: 1.5rem;
+  }
+
+  .editor pre {
+    margin: 0;
+    color: #9e9e9e;
+  }
+
+  textarea {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #fff;
+    font-family: monospace;
+    font-size: 1.2rem;
+    outline: none;
+    resize: none;
+    padding-left: 20px;
+    margin: 5px 0;
+  }
+
+  button {
+    margin-top: auto;
+    padding: 15px;
+    background: #e53935;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    font-size: 1.1rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: background 0.3s;
+  }
+
+  button:hover { background: #f44336; }
+  button:disabled { background: #546E7A; cursor: not-allowed; color: #90A4AE; }
+
+  /* Progress indicator */
+  #progress {
+    font-size: 0.9rem;
+    color: #90A4AE;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* The Pond */
+  #pond-container {
+    position: relative;
+    width: 100%;
+    max-width: 700px;
+    height: 100%;
+    max-height: 700px;
+    background: rgba(255,255,255,0.1);
+    border-radius: 15px;
+    border: 2px solid rgba(255,255,255,0.2);
+    overflow: hidden;
+  }
+
+  #lilypads, #pond {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex; /* This is the core flex container */
+    padding: 10px;
+  }
+
+  #pond {
+    z-index: 2;
+  }
+
+  #lilypads {
+    z-index: 1;
+  }
+
+  /* Image styling */
+  .lilypad, .frog {
+    width: 20%; /* Makes elements scale slightly on smaller screens */
+    max-width: 80px;
+    height: auto;
+    object-fit: contain;
+    margin: 5px;
+  }
+
+  .win-bounce {
+    animation: bounce 0.5s alternate infinite;
+  }
+
+  @keyframes bounce {
+    0% { transform: translateY(0); }
+    100% { transform: translateY(-15px); }
+  }
+</style>
+</head>
+<body>
+
+  <div id="sidebar">
+    <div id="progress">Level 1 of 15</div>
+    <h1 id="level-title">Level 1</h1>
+    <div id="instructions"></div>
+    
+    <div class="editor">
+      <pre>#pond {</pre>
+      <pre>  display: flex;</pre>
+      <textarea id="css-input" rows="3" spellcheck="false" autofocus></textarea>
+      <pre>}</pre>
+    </div>
+
+    <button id="next-btn" disabled>Next Level</button>
+  </div>
+
+  <div id="game-board">
+    <div id="pond-container">
+      <div id="lilypads"></div>
+      <div id="pond"></div>
+    </div>
+  </div>
+
+<script>
+  // External SVG Image URLs for high-quality visuals
+  const FROG_IMG = "https://cdn.jsdelivr.net/gh/thomaspark/flexboxfroggy/images/frog-green.svg";
+  const LILYPAD_IMG = "https://cdn.jsdelivr.net/gh/thomaspark/flexboxfroggy/images/lilypad-green.svg";
+
+  // Game Levels Configuration (15 Levels)
+  const levels = [
+    {
+      title: "Justify Content",
+      instructions: "Welcome! Guide the frog to the lilypad on the right by typing <code>justify-content: flex-end;</code> into the editor below.",
+      frogCount: 1,
+      targetCSS: { "justify-content": "flex-end" },
+      lilypadStyles: { "justify-content": "flex-end" }
+    },
+    {
+      title: "Center Alignment",
+      instructions: "Use <code>justify-content</code> again to put these two frogs perfectly in the center of the pond. Try the value <code>center</code>.",
+      frogCount: 2,
+      targetCSS: { "justify-content": "center" },
+      lilypadStyles: { "justify-content": "center" }
+    },
+    {
+      title: "Space Around",
+      instructions: "Distribute the frogs evenly with equal space around them using <code>justify-content: space-around;</code>.",
+      frogCount: 3,
+      targetCSS: { "justify-content": "space-around" },
+      lilypadStyles: { "justify-content": "space-around" }
+    },
+    {
+      title: "Space Between",
+      instructions: "Now the lilypads are pushed to the edges. Use <code>justify-content: space-between;</code> to space the frogs apart.",
+      frogCount: 3,
+      targetCSS: { "justify-content": "space-between" },
+      lilypadStyles: { "justify-content": "space-between" }
+    },
+    {
+      title: "Align Items",
+      instructions: "The <code>align-items</code> property aligns elements vertically. Move the frogs to the bottom using <code>align-items: flex-end;</code>.",
+      frogCount: 3,
+      targetCSS: { "align-items": "flex-end" },
+      lilypadStyles: { "align-items": "flex-end" }
+    },
+    {
+      title: "Align Center",
+      instructions: "Center the frogs vertically using <code>align-items: center;</code>.",
+      frogCount: 3,
+      targetCSS: { "align-items": "center" },
+      lilypadStyles: { "align-items": "center" }
+    },
+    {
+      title: "Bullseye",
+      instructions: "Combine <b>both</b> <code>justify-content</code> and <code>align-items</code> to move the frog to the exact center of the pond.",
+      frogCount: 1,
+      targetCSS: { "justify-content": "center", "align-items": "center" },
+      lilypadStyles: { "justify-content": "center", "align-items": "center" }
+    },
+    {
+      title: "Flex Direction",
+      instructions: "The <code>flex-direction</code> property defines the direction items are placed. Stack the frogs vertically using <code>flex-direction: column;</code>.",
+      frogCount: 3,
+      targetCSS: { "flex-direction": "column" },
+      lilypadStyles: { "flex-direction": "column" }
+    },
+    {
+      title: "Row Reverse",
+      instructions: "Reverse the order of the frogs and push them to the right using <code>flex-direction: row-reverse;</code>.",
+      frogCount: 3,
+      targetCSS: { "flex-direction": "row-reverse" },
+      lilypadStyles: { "flex-direction": "row-reverse" }
+    },
+    {
+      title: "Column Reverse",
+      instructions: "Stack the frogs backwards from bottom to top using <code>flex-direction: column-reverse;</code>.",
+      frogCount: 3,
+      targetCSS: { "flex-direction": "column-reverse" },
+      lilypadStyles: { "flex-direction": "column-reverse" }
+    },
+    {
+      title: "Mixing Direction & Justify",
+      instructions: "Properties behave differently based on direction. Use <code>flex-direction: column;</code> and <code>justify-content: space-between;</code>.",
+      frogCount: 3,
+      targetCSS: { "flex-direction": "column", "justify-content": "space-between" },
+      lilypadStyles: { "flex-direction": "column", "justify-content": "space-between" }
+    },
+    {
+      title: "Flex Wrap",
+      instructions: "There are too many frogs! Use <code>flex-wrap: wrap;</code> to let them form multiple rows instead of squeezing together.",
+      frogCount: 15,
+      targetCSS: { "flex-wrap": "wrap" },
+      lilypadStyles: { "flex-wrap": "wrap" }
+    },
+    {
+      title: "Column Wrapping",
+      instructions: "Wrap the items vertically instead of horizontally using <code>flex-direction: column;</code> and <code>flex-wrap: wrap;</code>.",
+      frogCount: 15,
+      targetCSS: { "flex-direction": "column", "flex-wrap": "wrap" },
+      lilypadStyles: { "flex-direction": "column", "flex-wrap": "wrap" }
+    },
+    {
+      title: "Align Content",
+      instructions: "When wrapping, <code>align-content</code> spaces the rows themselves. Pack them at the top using <code>align-content: flex-start;</code>.",
+      frogCount: 15,
+      targetCSS: { "flex-wrap": "wrap", "align-content": "flex-start" },
+      lilypadStyles: { "flex-wrap": "wrap", "align-content": "flex-start" }
+    },
+    {
+      title: "The Grand Finale",
+      instructions: "Bring the whole crowd to the middle of the pond using <code>flex-wrap: wrap;</code> and <code>align-content: center;</code>.",
+      frogCount: 15,
+      targetCSS: { "flex-wrap": "wrap", "align-content": "center" },
+      lilypadStyles: { "flex-wrap": "wrap", "align-content": "center" }
+    }
+  ];
+
+  let currentLevel = 0;
+  
+  // DOM Elements
+  const pond = document.getElementById("pond");
+  const lilypads = document.getElementById("lilypads");
+  const cssInput = document.getElementById("css-input");
+  const nextBtn = document.getElementById("next-btn");
+  const titleEl = document.getElementById("level-title");
+  const instructionsEl = document.getElementById("instructions");
+  const progressEl = document.getElementById("progress");
+
+  // Load a specific level
+  function loadLevel(index) {
+    const level = levels[index];
+    
+    // Update Text
+    progressEl.innerText = `Level ${index + 1} of ${levels.length}`;
+    titleEl.innerText = level.title;
+    instructionsEl.innerHTML = level.instructions;
+    
+    // Adjust textarea height based on required properties
+    const propertyCount = Object.keys(level.targetCSS).length;
+    cssInput.rows = Math.max(3, propertyCount + 1);
+
+    // Reset Editor and UI
+    cssInput.value = "";
+    pond.style.cssText = "";
+    nextBtn.disabled = true;
+    nextBtn.innerText = "Next Level";
+
+    // Clear previous elements
+    pond.innerHTML = "";
+    lilypads.innerHTML = "";
+
+    // Apply exact background layout for lilypads
+    lilypads.style.cssText = ""; 
+    for (const [prop, value] of Object.entries(level.lilypadStyles)) {
+      lilypads.style.setProperty(prop, value);
+    }
+
+    // Spawn Frogs and Lilypads as Images
+    for(let i = 0; i < level.frogCount; i++) {
+      const lily = document.createElement("img");
+      lily.src = LILYPAD_IMG;
+      lily.className = "lilypad";
+      lilypads.appendChild(lily);
+
+      const frog = document.createElement("img");
+      frog.src = FROG_IMG;
+      frog.className = "frog";
+      pond.appendChild(frog);
+    }
+  }
+
+  // Listen for user typing CSS
+  cssInput.addEventListener("input", (e) => {
+    // Apply user's CSS directly to the pond
+    pond.style.cssText = e.target.value;
+    checkWinCondition();
+  });
+
+  // Verify if the user's CSS matches the required target
+  function checkWinCondition() {
+    const level = levels[currentLevel];
+    let isWinner = true;
+
+    // Check all required properties for this level
+    for (let prop in level.targetCSS) {
+      const userValue = pond.style.getPropertyValue(prop).trim();
+      if (userValue !== level.targetCSS[prop]) {
+        isWinner = false;
+        break;
+      }
+    }
+
+    if (isWinner) {
+      nextBtn.disabled = false;
+      document.querySelectorAll('.frog').forEach(f => f.classList.add('win-bounce'));
+    } else {
+      nextBtn.disabled = true;
+      document.querySelectorAll('.frog').forEach(f => f.classList.remove('win-bounce'));
+    }
+  }
+
+  // Handle Next Button
+  nextBtn.addEventListener("click", () => {
+    if (currentLevel < levels.length - 1) {
+      currentLevel++;
+      loadLevel(currentLevel);
+    } else {
+      progressEl.innerText = "Game Completed";
+      titleEl.innerText = "You Won!";
+      instructionsEl.innerHTML = "Incredible job! You have mastered Flexbox layouts. Refresh the page to play again.";
+      pond.innerHTML = "";
+      lilypads.innerHTML = "";
+      cssInput.disabled = true;
+      nextBtn.style.display = 'none';
+    }
+  });
+
+  // Initialize Game
+  loadLevel(0);
+</script>
+
+</body>
+</html>
